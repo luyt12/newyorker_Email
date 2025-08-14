@@ -142,7 +142,7 @@ def call_gemini_api(api_key=None, prompt=None, articles=None):
 
     for attempt in range(max_retries):
         try:
-            # 构建请求数据
+# 构建请求数据
             # 修改API请求参数
             request_data = {
                 "contents": [
@@ -158,7 +158,25 @@ def call_gemini_api(api_key=None, prompt=None, articles=None):
                     "topK": 40,
                     "topP": 0.95,
                     "maxOutputTokens": 100000
-                }
+                },
+                "safetySettings": [
+                    {
+                        "category": "HARM_CATEGORY_HARASSMENT",
+                        "threshold": "BLOCK_NONE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_HATE_SPEECH",
+                        "threshold": "BLOCK_NONE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        "threshold": "BLOCK_NONE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                        "threshold": "BLOCK_NONE"
+                    }
+                ]
             }
             
             # 发送请求
