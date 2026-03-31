@@ -44,22 +44,8 @@ def format_html(content, date_str):
     return html
 
 
-def send_daily_email(date_str=None):
-    if not date_str:
-        date_str = datetime.now().strftime("%Y%m%d")
-    filepath = os.path.join(ARTICLES_DIR, date_str + ".md")
-    if not os.path.exists(filepath):
-        import glob
-        files = sorted(glob.glob(os.path.join(ARTICLES_DIR, "*.md")))
-        if files:
-            filepath = files[-1]
-            m = re.search(r"(\d{8})", filepath)
-            if m:
-                date_str = m.group(1)
-            print("Using latest: " + filepath)
-        else:
-            print("No article files found")
-            return False
+def send_from_file(filepath, date_str):
+    """直接读取指定文件发送，不重新拼路径"""
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
     if not content.strip():
@@ -85,15 +71,36 @@ def send_daily_email(date_str=None):
         return False
 
 
+def send_daily_email(date_str=None):
+    if not date_str:
+        date_str = datetime.now().strftime("%Y%m%d")
+    # 优先读翻译文件，fallback 到原文
+    for search_dir in ["translate", ARTICLES_DIR]:
+        filepath = os.path.join(search_dir, date_str + ".md")
+        if os.path.exists(filepath):
+            return send_from_file(filepath, date_str)
+    # 找最新翻译文件
+    import glob
+    for search_dir in ["translate", ARTICLES_DIR]:
+        files = sorted(glob.glob(os.path.join(search_dir, "*.md")))
+        if files:
+            filepath = files[-1]
+            m = re.search(r"(\d{8})", filepath)
+            ds = m.group(1) if m else date_str
+            print("Using latest: " + filepath)
+            return send_from_file(filepath, ds)
+    print("No files found")
+    return False
+
+
 def main(filepath=None):
     if filepath is None and len(sys.argv) > 1:
         filepath = sys.argv[1]
-    if filepath:
+    if filepath and os.path.exists(filepath):
+        # 直接用传入的文件路径，不重新拼
         m = re.search(r"(\d{8})", filepath)
-        if m:
-            send_daily_email(m.group(1))
-        else:
-            send_daily_email()
+        date_str = m.group(1) if m else datetime.now().strftime("%Y%m%d")
+        send_from_file(filepath, date_str)
     else:
         send_daily_email()
 
