@@ -1,114 +1,102 @@
 """
 New Yorker 姣忔棩浠诲姟鍏ュ彛
-鎶撳彇 -> 鍘婚噸杩囨护 -> 缈昏瘧姣忕瘒 -> 姣忕瘒鐙珛鍙戦偖浠?"""
+鎶撳彇褰撳ぉ鏂囩珷 鈫?鍘婚噸锛堟渶澶?0绡囷級鈫?鎻愮偧瑕佺偣+缈昏瘧 鈫?鍚堝苟涓轰竴灏侀偖浠跺彂閫?"""
 import os
 import glob
 import json
-import pytz
 from datetime import datetime
+import pytz
 
-tz_est = pytz.timezone("America/New_York")
-today = datetime.now(tz_est).strftime("%Y%m%d")
+TZ = pytz.timezone("America/New_York")
+today_str = datetime.now(TZ).strftime("%Y%m%d")
 
 SENT_FILE = "sent_articles.json"
 
 
 def load_sent():
-    """浠?sent_articles.json 鍔犺浇宸插彂閫佽褰?""
     if os.path.exists(SENT_FILE):
         try:
             with open(SENT_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                return set(json.load(f).get("sent", []))
         except Exception:
             pass
-    return {"sent": {}}
+    return set()
 
 
-def save_sent(data):
-    """淇濆瓨宸插彂閫佽褰曞埌 sent_articles.json"""
+def save_sent(urls):
     with open(SENT_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        json.dump({"sent": list(urls)}, f, ensure_ascii=False, indent=2)
 
 
-def get_article_url(filepath):
-    """浠庢枃绔犳枃浠朵腑鎻愬彇 URL"""
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            content = f.read()
-        # 鎵?[Original Link](url) 琛?        import re
-        m = re.search(r'\[Original Link\]\((https?://[^\)]+)\)', content)
-        if m:
-            return m.group(1)
-    except Exception:
-        pass
-    return None
-
-
-# Step 1: 鎶撳彇鏂囩珷
-print("Step 1: 鎶撳彇鏂囩珷...")
+# Step 1: 鎶撳彇褰撳ぉ鏂囩珷锛堝凡鍘婚噸锛屾渶澶?0绡囷級
+print("Step 1: 鎶撳彇褰撳ぉ鏂囩珷...")
 import newyorker_rss_reader
-newyorker_rss_reader.main()
+saved = newyorker_rss_reader.main()
 
-# Step 2: 鍔犺浇宸插彂閫佽褰?print("Step 2: 鍘婚噸杩囨护...")
-sent_data = load_sent()
-sent_urls = sent_data.get("sent", {})
-print("Already sent: " + str(len(sent_urls)) + " articles")
+if not saved:
+    print("浠婃棩鏃犳柊鏂囩珷锛岄€€鍑?)
+    exit(0)
 
-# Step 3: 鎵句粖鏃ユ枃绔狅紝杩囨护宸插彂閫佺殑
+print(f"鎶撳彇鍒?{len(saved)} 绡囨柊鏂囩珷")
+
+# Step 2: 璁板綍浠婃棩 URL 鍒板凡鍙戦€佸垪琛?sent_urls = load_sent()
+for _, url in saved:
+    sent_urls.add(url)
+
+# Step 3: 鎵惧埌浠婃棩鏂囩珷鏂囦欢
+today_files = sorted(glob.glob(os.path.join("articles", today_str + "_art*.md")))
+if not today_files:
+    print("鏈壘鍒颁粖鏃ユ枃绔犳枃浠?)
+    exit(1)
+
+print(f"寮€濮嬫彁鐐?缈昏瘧 {len(today_files)} 绡囨枃绔?..")
+
+# Step 4: 鎻愮偧+缈昏瘧
 import kimi_summarizer
-import send_email
+translated_contents = []
 
-today_articles = sorted(glob.glob(os.path.join("articles", today + "_art*.md")))
-print("Found today's articles: " + str(len(today_articles))))
-
-# 濡傛灉娌℃湁鐙珛鏂囦欢锛宖allback
-if not today_articles:
-    agg_file = os.path.join("articles", today + ".md")
-    if os.path.exists(agg_file):
-        today_articles = [agg_file]
-    else:
-        files = sorted(glob.glob("articles/*.md"))
-        if files:
-            today_articles = [files[-1]]
-
-new_articles = []
-for filepath in today_articles:
-    url = get_article_url(filepath)
-    if url and url in sent_urls:
-        print("Already sent, skipping: " + url)
-        continue
-    new_articles.append((filepath, url))
-    if url:
-        sent_urls[url] = today  # 鏍囪涓轰粖澶╁彂閫?
-print("New articles to send: " + str(len(new_articles)))
-
-# Step 4: 缈昏瘧骞跺彂閫佹瘡绡囨柊鏂囩珷
-success_count = 0
-for filepath, url in new_articles:
-    print("Processing: " + filepath)
-
+for filepath in today_files:
+    print(f"  缈昏瘧: {os.path.basename(filepath)}")
     ok = kimi_summarizer.translate_file(filepath)
     if not ok:
-        print("Translation failed: " + filepath)
+        print(f"    缈昏瘧澶辫触锛岃烦杩?)
         continue
 
     basename = os.path.basename(filepath)
     translated_file = os.path.join("translate", basename)
 
-    if not os.path.exists(translated_file):
-        print("Translated file not found: " + translated_file)
-        continue
+    if os.path.exists(translated_file):
+        with open(translated_file, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+        if content:
+            translated_contents.append(content)
+        try:
+            os.remove(translated_file)
+        except Exception:
+            pass
 
-    try:
-        send_email.main(translated_file)
-        print("Email sent: " + translated_file)
-        success_count += 1
-    except Exception as e:
-        print("Email error: " + str(e))
+if not translated_contents:
+    print("鏃犵炕璇戝唴瀹癸紝閫€鍑?)
+    exit(1)
 
-# Step 5: 淇濆瓨宸插彂閫佽褰?if new_articles:
-    save_sent(sent_data)
-    print("Saved sent_articles.json")
+# Step 5: 鍚堝苟鎵€鏈夋憳瑕佷负涓€灏侀偖浠?combined = "\n\n---\n\n".join(translated_contents)
+combined_file = os.path.join("translate", today_str + "_combined.md")
+with open(combined_file, "w", encoding="utf-8") as f:
+    f.write(combined)
+print(f"\n鍚堝苟鎽樿宸蹭繚瀛? {combined_file} ({len(combined)} 瀛?")
 
-print("Successfully sent " + str(success_count) + "/" + str(len(new_articles)) + " emails")
-print("Done!")
+# Step 6: 鍙戦€佷竴灏侀偖浠?print("鍙戦€侀偖浠?..")
+import send_email
+try:
+    send_email.main(combined_file)
+    print(f"閭欢鍙戦€佹垚鍔燂紝鍏?{len(translated_contents)} 绡囨枃绔?)
+except Exception as e:
+    print(f"閭欢鍙戦€佸け璐? {e}")
+
+try:
+    os.remove(combined_file)
+except Exception:
+    pass
+
+# Step 7: 淇濆瓨宸插彂閫佽褰?save_sent(sent_urls)
+print(f"瀹屾垚锛歿len(translated_contents)} 绡囨憳瑕佸凡鍙戦€?)
