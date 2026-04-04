@@ -1,110 +1,293 @@
-import smtplib
-import os
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from datetime import datetime
-
-today = datetime.now().strftime('%Y-%m-%d')
-
-report = f"""馃摪 姣忔棩绠€鎶?鈥?{today}
-
-================================================================
-馃實 鍦扮紭鏀挎不锛氱編浼婃垬浜夛紙绗?0澶╋級
-----------------------------------------------------------------------
-鈥?缇庡浗鍜屼互鑹插垪鑱斿悎鎵撳嚮浼婃湕澧冨唴鍐涗簨鐩爣锛屼互鑹插垪琚嚮浜嗗崡甯曞皵鏂ぉ鐒舵皵鐢?鈥?娌逛环椋欏崌 鈥?鍏ㄧ悆鑳芥簮甯傚満鍙楀埌閲嶅ぇ鍐插嚮
-鈥?鐗规湕鏅細"涓嶄細鍚戜紛鏈楁淳閬ｅ湴闈㈤儴闃?
-鈥?鏍稿績鎯呮姤鎽樿锛氱編浠ュ啿绐佺20澶╋紝缇庡啗娣卞叆鎵撳嚮浼婃湕澧冨唴鍐涗簨鐩爣锛屼互鑹插垪琚嚮鍗楀笗灏旀柉姘旂敯瀵艰嚧鑳芥簮浠锋牸鏆存定銆?
-馃搸 鏉ユ簮锛?  - CNN: https://www.cnn.com/2026/03/19/middleeast/us-israel-iran-middle-east-war-day-20-what-we-know-intl-hnk
-  - Al Jazeera: https://www.aljazeera.com/video/newsfeed/2026/3/20/unpacking-netanyahus-latest-claims-about-the-war-on-iran
-  - Fox News: https://www.foxnews.com/video/6391246686112
-
-----------------------------------------------------------------------
-馃 AI 涓庣鎶€
-----------------------------------------------------------------------
-鈥?AI 鍩虹璁炬柦蹇€熸墿寮?鈥?Cerebras 鐧婚檰 AWS銆丯VIDIA 寮€鏀炬暟鎹鍒?鈥?2026骞?鏈堝涓柊 AI 妯″瀷鍙戝竷锛涘垵鍒涘叕鍙稿彈鐩婁簬鍩虹璁炬柦鏀瑰杽
-鈥?鏍稿績鎯呮姤鎽樿锛欰I 鍩虹璁炬柦蹇€熸墿寮狅紝澶氫釜鏂版ā鍨嬪拰鍚堜綔椤圭洰娑岀幇锛屽寘鎷?Cerebras 涓?AWS 鐨勫悎浣滀互鍙?NVIDIA 鐨勫紑鏀炬暟鎹鍒掋€?
-馃搸 鏉ユ簮锛?  - Mean CEO: https://blog.mean.ceo/new-ai-model-releases-news-march-2026/
-  - Radical Data Science: https://radicaldatascience.wordpress.com/2026/03/17/ai-news-briefs-bulletin-board-for-march-2026/
-
-----------------------------------------------------------------------
-馃嚭馃嚫 缇庡浗鏀挎不
-----------------------------------------------------------------------
-鈥?鐗规湕鏅?鏈?0鏃ヤ細瑙佸鍥介瀵间汉锛岀缃查拡瀵逛紛鏈楃殑鏂拌鏀夸护
-鈥?鍑哄腑澹叺閬椾綋褰掑浗浠紡锛涗紛鏈楁垬浜夋垚涓虹浜屼换鏈熸牳蹇冭棰?鈥?鏍稿績鎯呮姤鎽樿锛?鏈?0鏃ョ壒鏈楁櫘浼氳鍥介檯棰嗗浜猴紝绛剧讲閽堝浼婃湕濞佽儊鐨勮鏀夸护锛屽苟鍑哄腑浼や骸灏嗗＋褰掑浗浠紡銆?
-馃搸 鏉ユ簮锛?  - CNN: https://www.cnn.com/politics/president-donald-trump-47
-  - AP News: https://apnews.com/hub/donald-trump
-  - 鐧藉: https://www.whitehouse.gov/videos/president-trump-participates-in-a-bilateral-meeting-mar-19-2026/
-
-----------------------------------------------------------------------
-馃挵 甯傚満涓庣粡娴?----------------------------------------------------------------------
-鈥?閬撴寚3鏈?0鏃ヤ笂娑?00+鐐癸紝鏍囨櫘500涓婃定
-鈥?鏍囨櫘500鏃╀簺鏃跺€欏洜浼婃湕鐭虫补鍗辨満鍒涘勾鍐呮柊浣?鈥?娌逛环缁存寔楂樹綅锛汵vidia 鍜屾补浠锋槸鍗庡皵琛楀叧娉ㄧ劍鐐?鈥?鍏ㄧ悆15%鍏崇◣鐢熸晥 鈥?甯傚満娉㈠姩鎸佺画
-
-馃搸 鏉ユ簮锛?  - CNBC: https://www.cnbc.com/2026/03/03/stock-market-today-live-updates.html
-  - CNBC: https://www.cnbc.com/2026/03/12/stock-market-today-live-updates.html
-
-================================================================
-鐢?OpenClaw Agent 鐢熸垚 | Tavily Search API 椹卞姩
 """
+New Yorker News Email Sender - beautified version
+Merge multiple article summaries into one HTML email
+"""
+import os
+import sys
+import re
+import smtplib
+import ssl
+from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
-print("=== 姣忔棩绠€鎶ラ偖浠跺彂閫?===")
-print(f"鏀朵欢浜? HZ-lu2007@outlook.com")
-print(f"涓婚: 姣忔棩绠€鎶?{today}")
-print("")
+EMAIL_TO = os.getenv("EMAIL_TO") or ""
+EMAIL_FROM = os.getenv("EMAIL_FROM") or ""
+SMTP_HOST = os.getenv("SMTP_HOST") or ""
+SMTP_PORT = int(os.getenv("SMTP_PORT") or "465")
+SMTP_USER = os.getenv("SMTP_USER") or ""
+SMTP_PASS = os.getenv("SMTP_PASS") or ""
 
-# Check for SMTP credentials in .env
-env_path = r"C:\Program Files\QClaw\resources\openclaw\config\skills\imap-smtp-email\.env"
-smtp_host = None
-smtp_user = None
-smtp_pass = None
-smtp_port = 587
-smtp_from = None
+_missing = [k for k, v in {
+    "EMAIL_TO": EMAIL_TO, "EMAIL_FROM": EMAIL_FROM,
+    "SMTP_HOST": SMTP_HOST, "SMTP_USER": SMTP_USER, "SMTP_PASS": SMTP_PASS
+}.items() if not v]
+if _missing:
+    print("ERROR: Missing env vars: " + ", ".join(_missing))
+    sys.exit(1)
 
-if os.path.exists(env_path):
-    print("鎵惧埌 SMTP 閰嶇疆鏂囦欢...")
-    with open(env_path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith('#') or '=' not in line:
-                continue
-            k, v = line.split('=', 1)
-            k = k.strip()
-            v = v.strip()
-            if k == 'SMTP_HOST': smtp_host = v
-            elif k == 'SMTP_PORT': smtp_port = int(v)
-            elif k == 'SMTP_USER': smtp_user = v
-            elif k == 'SMTP_PASS': smtp_pass = v
-            elif k == 'SMTP_FROM': smtp_from = v
 
-    print(f"  SMTP_HOST: {'宸查厤缃? if smtp_host else '鏈厤缃?}")
-    print(f"  SMTP_USER: {'宸查厤缃? if smtp_user else '鏈厤缃?}")
-    print(f"  SMTP_PASS: {'宸查厤缃? if smtp_pass else '鏈厤缃?}")
-else:
-    print("鏈壘鍒?SMTP 閰嶇疆鏂囦欢")
+def extract_date(filepath):
+    m = re.search(r"(\d{8})", filepath)
+    return m.group(1) if m else datetime.now().strftime("%Y%m%d")
 
-if not all([smtp_host, smtp_user, smtp_pass]):
-    print("")
-    print("SMTP 鏈畬鏁撮厤缃紝璺宠繃鍙戦€併€傛棩鎶ュ唴瀹瑰涓嬶細")
-    print(report)
-else:
+
+def make_html(combined_content, date_str):
+    import markdown
+
+    date_fmt = datetime.strptime(date_str, "%Y%m%d").strftime("%Y年%m月%d日")
+
+    # 分割每篇文章（以 ## 开头即为新文章）
+    sections = re.split(r"\n(?=## )", combined_content.strip())
+
+    articles_html = ""
+    for i, section in enumerate(sections):
+        section = section.strip()
+        if not section:
+            continue
+
+        article_html = markdown.markdown(
+            section,
+            extensions=['fenced_code', 'tables'],
+            output_format='html'
+        )
+
+        articles_html += f"""
+        <div class="article{' odd' if i % 2 == 0 else ''}">
+            {article_html}
+        </div>"""
+
+    html = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The New Yorker 日报 - {date_fmt}</title>
+<style>
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{
+    background: #f0f2f5;
+    font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+    color: #1a1a1a;
+    padding: 20px 0;
+  }}
+  .wrapper {{
+    max-width: 680px;
+    margin: 0 auto;
+    background: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  }}
+  /* 报头 */
+  .header {{
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: #fff;
+    padding: 32px 40px;
+    position: relative;
+  }}
+  .header::after {{
+    content: '';
+    position: absolute;
+    bottom: -20px;
+    left: 0; right: 0;
+    height: 20px;
+    background: linear-gradient(to bottom right, #16213e 0%, #16213e 50%, transparent 50%);
+  }}
+  .header-inner {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }}
+  .header h1 {{
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #fff;
+  }}
+  .header .subtitle {{
+    font-size: 14px;
+    opacity: 0.75;
+    margin-top: 4px;
+    color: #c0c0c0;
+  }}
+  .header .date-badge {{
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 13px;
+    text-align: center;
+    color: #fff;
+  }}
+  .header .date-badge span {{
+    display: block;
+    font-size: 11px;
+    opacity: 0.65;
+    margin-bottom: 2px;
+  }}
+  /* 文章计数 */
+  .meta-bar {{
+    background: #fafafa;
+    border-bottom: 1px solid #eee;
+    padding: 12px 40px;
+    font-size: 13px;
+    color: #888;
+  }}
+  /* 文章列表 */
+  .articles {{
+    padding: 32px 40px 40px;
+  }}
+  .article {{
+    margin-bottom: 36px;
+    padding-bottom: 36px;
+    border-bottom: 1px solid #f0f0f0;
+  }}
+  .article:last-child {{
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }}
+  /* 文章标题 */
+  .article h2 {{
+    font-size: 17px;
+    font-weight: 600;
+    color: #1a1a2e;
+    line-height: 1.5;
+    margin-bottom: 12px;
+    padding-left: 14px;
+    border-left: 4px solid #1a1a2e;
+  }}
+  /* 文章正文 */
+  .article p {{
+    font-size: 15px;
+    line-height: 1.85;
+    color: #3a3a3a;
+    margin-bottom: 10px;
+  }}
+  /* 链接 */
+  .article a {{
+    color: #1a1a2e;
+    text-decoration: none;
+    font-weight: 500;
+  }}
+  .article a:hover {{
+    text-decoration: underline;
+  }}
+  /* 原文链接 */
+  .article em {{
+    display: block;
+    margin-top: 12px;
+    font-size: 12px;
+    color: #aaa;
+    font-style: normal;
+  }}
+  /* 列表 */
+  .article ul, .article ol {{
+    padding-left: 24px;
+    margin: 8px 0;
+  }}
+  .article li {{
+    font-size: 15px;
+    line-height: 1.85;
+    color: #3a3a3a;
+    margin-bottom: 4px;
+  }}
+  .article strong {{
+    color: #1a1a2e;
+    font-weight: 600;
+  }}
+  /* 页脚 */
+  .footer {{
+    background: #fafafa;
+    border-top: 1px solid #eee;
+    padding: 20px 40px;
+    text-align: center;
+  }}
+  .footer p {{
+    font-size: 11px;
+    color: #bbb;
+    line-height: 1.8;
+  }}
+  .footer a {{
+    color: #1a1a2e;
+    text-decoration: none;
+  }}
+  @media (max-width: 480px) {{
+    body {{ padding: 10px 0; }}
+    .header {{ padding: 24px 20px; }}
+    .articles {{ padding: 24px 20px 32px; }}
+    .meta-bar {{ padding: 10px 20px; }}
+    .footer {{ padding: 16px 20px; }}
+  }}
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <div class="header-inner">
+      <div>
+        <h1>The New Yorker 日报</h1>
+        <div class="subtitle">美国深度报道精选 · AI 摘要翻译</div>
+      </div>
+      <div class="date-badge">
+        <span>日期</span>
+        {date_fmt}
+      </div>
+    </div>
+  </div>
+  <div class="meta-bar">今日共收录 {len(sections)} 篇精选文章</div>
+  <div class="articles">{articles_html}</div>
+  <div class="footer">
+    <p>由 OpenClaw Agent 自动生成 · 每日定时推送</p>
+    <p>原文来源：The New Yorker (feedx.net)</p>
+  </div>
+</div>
+</body>
+</html>"""
+    return html
+
+
+def send_email(filepath):
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    if not content.strip():
+        print("File is empty: " + filepath)
+        return False
+
+    date_str = extract_date(filepath)
+    date_fmt = datetime.strptime(date_str, "%Y%m%d").strftime("%Y-%m-%d")
+
+    html = make_html(content, date_str)
+
+    msg = MIMEMultipart()
+    msg["From"] = EMAIL_FROM
+    msg["To"] = EMAIL_TO
+    msg["Subject"] = f"The New Yorker 日报 · {date_fmt}"
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    print(f"SMTP: {SMTP_HOST}:{SMTP_PORT} -> {EMAIL_TO}")
     try:
-        print("\n姝ｅ湪杩炴帴 SMTP 鏈嶅姟鍣?..")
-        msg = MIMEMultipart()
-        msg['From'] = smtp_from or smtp_user
-        msg['To'] = 'HZ-lu2007@outlook.com'
-        msg['Subject'] = f"姣忔棩绠€鎶?{today}"
-        msg.attach(MIMEText(report, 'plain', 'utf-8'))
-
-        server = smtplib.SMTP(smtp_host, smtp_port)
-        server.ehlo()
-        server.starttls()
-        server.login(smtp_user, smtp_pass)
-        server.sendmail(smtp_user, ['HZ-lu2007@outlook.com'], msg.as_string())
-        server.quit()
-
-        print("鉁?閭欢鍙戦€佹垚鍔?")
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx) as server:
+            server.login(SMTP_USER, SMTP_PASS)
+            server.sendmail(EMAIL_FROM, [EMAIL_TO], msg.as_string())
+        print("Email sent: " + EMAIL_TO)
+        return True
     except Exception as e:
-        print(f"鉂?鍙戦€佸け璐? {e}")
-        print("")
-        print("鏃ユ姤鍐呭锛?)
-        print(report)
+        print("Error: " + str(e))
+        return False
+
+
+def main(filepath=None):
+    if filepath is None and len(sys.argv) > 1:
+        filepath = sys.argv[1]
+    if not filepath:
+        print("No filepath provided")
+        return
+    send_email(filepath)
+
+
+if __name__ == "__main__":
+    main()
