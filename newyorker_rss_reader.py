@@ -12,7 +12,7 @@ from datetime import datetime
 RSS_URL = "https://feedx.net/rss/newyorker.xml"
 ARTICLES_DIR = "articles"
 TZ = pytz.timezone("America/New_York")
-
+MAX_DAILY = 5  # 姣忓ぉ鏈€澶氫繚鐣欑瘒鏁?
 
 def setup():
     if not os.path.exists(ARTICLES_DIR):
@@ -43,7 +43,6 @@ def parse(xml):
                 pub_str = "unknown"
         else:
             pub_str = "unknown"
-        # 鑾峰彇瀹屾暣鎽樿鍐呭锛屼笉鎴柇
         summary = ""
         if hasattr(e, "summary"):
             summary = re.sub(r"<[^>]+>", "", e.summary)
@@ -104,14 +103,14 @@ def main():
         f.write(format_entries(all_entries))
     print("Saved all: " + all_file)
 
+    # 鍙彇浠婂ぉ鏈€鏂?N 绡囷紙鏈€澶?MAX_DAILY锛?    today_entries = today_entries[-MAX_DAILY:] if len(today_entries) > MAX_DAILY else today_entries
+
     if today_entries:
-        # 淇濆瓨浠婃棩鏂囩珷鑱氬悎鏂囦欢
         today_file = os.path.join(ARTICLES_DIR, today_str + ".md")
         with open(today_file, "w", encoding="utf-8") as f:
             f.write(format_entries(today_entries))
-        print("Saved today: " + today_file)
+        print("Saved today (" + str(len(today_entries)) + " articles): " + today_file)
 
-        # 鍚屾椂灏嗘瘡绡囦粖鏃ユ枃绔犲崟鐙繚瀛橈紝鏂逛究鐙珛澶勭悊
         for i, e in enumerate(today_entries):
             single_file = os.path.join(ARTICLES_DIR, today_str + "_art" + str(i + 1) + ".md")
             with open(single_file, "w", encoding="utf-8") as f:
@@ -124,8 +123,8 @@ def main():
         if all_entries:
             fallback = os.path.join(ARTICLES_DIR, "latest.md")
             with open(fallback, "w", encoding="utf-8") as f:
-                f.write(format_entries(all_entries[:5]))
-            print("Saved latest 5: " + fallback)
+                f.write(format_entries(all_entries[:MAX_DAILY]))
+            print("Saved latest " + str(MAX_DAILY) + ": " + fallback)
             return fallback
     return None
 
