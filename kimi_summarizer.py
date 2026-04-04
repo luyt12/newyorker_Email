@@ -1,119 +1,161 @@
 """
-New Yorker 鏂囩珷缈昏瘧鍣?鍏堟彁鐐艰鐐癸紝鍐嶇炕璇戜负绠€浣撲腑鏂囷紝姣忕瘒杈撳嚭 300-500 瀛?"""
+New Yorker RSS fetcher
+Fetch articles from feedx.net/rss/newyorker.xml
+娴佺▼锛氬姞杞藉凡鍙戣褰?鈫?鍙栧綋澶╁€欓€?鈫?鎴彇鍓峃绡?鈫?鎶撳彇鍐呭 鈫?淇濆瓨鐙珛鏂囦欢
+"""
 import os
-import sys
-import logging
+import re
 import requests
-import time
+import feedparser
+import pytz
+from datetime import datetime
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-KIMI_API_KEY = os.getenv("kimi_API_KEY")
-KIMI_MODEL = os.getenv("KIMI_MODEL", "moonshotai/kimi-k2.5")
-KIMI_API_URL = os.getenv("KIMI_API_URL", "https://integrate.api.nvidia.com/v1/chat/completions")
-
-INPUT_DIR = "articles"
-OUTPUT_DIR = "translate"
-
-PROMPT = """浣犳槸涓€浣嶄笓涓氱殑鑻辨枃濯掍綋缂栬緫銆傝瀵逛互涓?The New Yorker 鏂囩珷瀹屾垚涓ゆ浠诲姟锛?
-## 绗竴姝ワ細鎻愮偧瑕佺偣
-浠旂粏闃呰鍘熸枃锛屾彁鍙栨渶鏍稿績鐨勪俊鎭偣锛?- 鏂囩珷璁ㄨ鐨勬牳蹇冭棰樻槸浠€涔堬紵
-- 鏈夊摢浜涘叧閿紩璇€佹暟鎹€佷汉鐗╋紵
-- 涓昏瑙傜偣鎴栫粨璁烘槸浠€涔堬紵
-- 瀵硅鑰呮渶閲嶈鐨勫惎绀烘槸浠€涔堬紵
-
-## 绗簩姝ワ細缈昏瘧骞剁患杩?灏嗘彁鐐肩殑瑕佺偣缈昏瘧涓虹畝浣撲腑鏂囷紝鍐欎綔瑕佹眰锛?1. 杈撳嚭 300-500 瀛楃殑涓枃鎽樿
-2. 浣跨敤 Markdown 鏍煎紡锛屼簩绾ф爣棰樹负鏂囩珷鑻辨枃鏍囬
-3. 鍦ㄦ爣棰樹笅鏂规敞鏄庡師鏂囬摼鎺?4. 鍑嗙‘鎬э細蹇犲疄鍘熸枃锛屼繚鐣欏叧閿紩璇拰鏁版嵁
-5. 娴佺晠鎬э細绗﹀悎鐜颁唬绠€浣撲腑鏂囪〃杈撅紝閬垮厤缈昏瘧鑵?6. 绠€娲佹€э細涓诲姩鎷嗗垎闀垮彞锛岀簿鐐肩敤璇?7. 鍖呭惈鑷冲皯涓€澶勫師鏂囦腑鐨勭簿褰╁紩璇?
-## 杈撳嚭鏍煎紡
-鐩存帴杈撳嚭涓枃鎽樿锛屼笉瑕佸姞鍏ヤ换浣曟棤鍏冲墠瑷€"""
+RSS_URL = "https://feedx.net/rss/newyorker.xml"
+ARTICLES_DIR = "articles"
+SENT_FILE = "sent_articles.json"
+MAX_DAILY = 10
+TZ = pytz.timezone("America/New_York")
 
 
-def summarize_and_translate(content):
-    if not KIMI_API_KEY:
-        logging.error("kimi_API_KEY 鏈缃?)
-        sys.exit(1)
+def setup():
+    if not os.path.exists(ARTICLES_DIR):
+        os.makedirs(ARTICLES_DIR)
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {KIMI_API_KEY}"
-    }
-    data = {
-        "model": KIMI_MODEL,
-        "messages": [
-            {"role": "system", "content": PROMPT},
-            {"role": "user", "content": content}
-        ],
-        "temperature": 0.7,
-        "max_tokens": 2000
-    }
 
-    for attempt in range(5):
+def load_sent():
+    if os.path.exists(SENT_FILE):
         try:
-            logging.info(f"鎻愪氦鎽樿缈昏瘧璇锋眰 (灏濊瘯 {attempt + 1}/5)...")
-            resp = requests.post(
-                KIMI_API_URL,
-                headers=headers,
-                json=data,
-                timeout=300
-            )
-            resp.raise_for_status()
-            result = resp.json()
-            if result.get("choices") and result["choices"][0]:
-                return result["choices"][0]["message"]["content"]
-            else:
-                logging.error(f"API 鍝嶅簲寮傚父: {result}")
-                if attempt < 4:
-                    time.sleep(30 * (2 ** attempt))
-        except requests.exceptions.Timeout:
-            logging.error(f"API 瓒呮椂 (灏濊瘯 {attempt + 1}/5)")
-            if attempt < 4:
-                time.sleep(30 * (2 ** attempt))
-        except Exception as e:
-            logging.error(f"璇锋眰澶辫触: {e}")
-            if attempt < 4:
-                time.sleep(30 * (2 ** attempt))
-    return None
+            import json
+            with open(SENT_FILE, "r", encoding="utf-8") as f:
+                return set(json.load(f).get("sent", []))
+        except Exception:
+            pass
+    return set()
 
 
-def translate_file(filepath):
-    if not os.path.exists(filepath):
-        logging.error(f"鏂囦欢涓嶅瓨鍦? {filepath}")
-        return False
+def fetch():
+    print("Fetching RSS: " + RSS_URL)
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0)"}
+    resp = requests.get(RSS_URL, headers=headers, timeout=15)
+    resp.raise_for_status()
+    return resp.text
 
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    outpath = os.path.join(OUTPUT_DIR, os.path.basename(filepath))
 
-    with open(filepath, 'r', encoding='utf-8') as f:
-        content = f.read()
+def parse(xml):
+    feed = feedparser.parse(xml)
+    today = datetime.now(TZ).strftime("%Y-%m-%d")
+    entries = []
+    for e in feed.entries:
+        title = e.get("title", "No title")
+        link = e.get("link", "#").strip()
+        pub = e.get("published_parsed") or e.get("updated_parsed")
+        if pub:
+            try:
+                dt = datetime(*pub[:6])
+                pub_str = dt.strftime("%Y-%m-%d")
+            except Exception:
+                pub_str = "unknown"
+        else:
+            pub_str = "unknown"
+        summary = ""
+        if hasattr(e, "summary"):
+            summary = re.sub(r"<[^>]+>", "", e.summary)
+        elif hasattr(e, "description"):
+            summary = re.sub(r"<[^>]+>", "", e.description)
+        entries.append({
+            "title": title.strip(),
+            "link": link,
+            "published": pub_str,
+            "summary": summary.strip(),
+            "today": pub_str == today
+        })
+    today_list = [x for x in entries if x["today"]]
+    print("Total: " + str(len(entries)) + ", Today: " + str(len(today_list)))
+    return today_list
 
-    logging.info(f"鎻愮偧+缈昏瘧: {filepath} ({len(content)} 瀛楃)")
-    result = summarize_and_translate(content)
 
-    if result:
-        with open(outpath, 'w', encoding='utf-8') as f:
-            f.write(result)
-        logging.info(f"瀹屾垚: {outpath} ({len(result)} 瀛楃)")
-        return True
-    else:
-        logging.error("缈昏瘧澶辫触")
-        return False
+def format_single(article):
+    lines = []
+    lines.append("# " + article["title"])
+    lines.append("*Published: " + article["published"] + "*")
+    lines.append("[Original Link](" + article["link"] + ")")
+    lines.append("")
+    if article.get("full_content"):
+        lines.append(article["full_content"])
+    elif article.get("summary"):
+        lines.append(article["summary"])
+    return "\n".join(lines)
+
+
+def fetch_full_content(url):
+    """鎶撳彇鏂囩珷瀹屾暣鍐呭锛堝彲閫夛紝鐢ㄤ簬涓板瘜鎽樿锛?""
+    try:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        resp = requests.get(url, headers=headers, timeout=15)
+        if resp.status_code != 200:
+            return None
+        # 绠€鍗曟彁鍙栵細鍘绘帀 HTML 鏍囩
+        text = re.sub(r"<script[\s\S]*?</script>", "", resp.text)
+        text = re.sub(r"<style[\s\S]*?</style>", "", text)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:3000] if len(text) > 3000 else text
+    except Exception:
+        return None
+
+
+def main():
+    setup()
+
+    sent_urls = load_sent()
+    print("Already sent: " + str(len(sent_urls)) + " articles")
+
+    xml = fetch()
+    today_entries = parse(xml)
+
+    if not today_entries:
+        print("No today articles")
+        return None
+
+    # Step 1: 鍘婚噸锛堝幓鎺夊凡鍙戦€佺殑锛?    candidates = [e for e in today_entries if e["link"] not in sent_urls]
+    print("After dedup: " + str(len(candidates)) + " candidates")
+
+    if not candidates:
+        print("All today articles already sent")
+        return None
+
+    # Step 2: 鎴彇鏁伴噺涓婇檺锛堟渶鏂扮殑鍦ㄥ墠锛?    top = candidates[:MAX_DAILY]
+    print("Limited to " + str(len(top)) + " articles")
+
+    # Step 3: 鎶撳彇鍐呭锛堟瘡绡囬檮涓婂彲閫夌殑鍏ㄦ枃锛?    for i, article in enumerate(top):
+        print(f"  Fetching content ({i+1}/{len(top)}): {article['title']}")
+        full = fetch_full_content(article["link"])
+        if full:
+            article["full_content"] = full
+        else:
+            article["full_content"] = article["summary"]
+
+    # Step 4: 淇濆瓨姣忕瘒涓虹嫭绔嬫枃浠?    today_str = datetime.now(TZ).strftime("%Y%m%d")
+    saved = []
+    for i, article in enumerate(top):
+        filename = today_str + "_art" + str(i + 1) + ".md"
+        filepath = os.path.join(ARTICLES_DIR, filename)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(format_single(article))
+        print("Saved: " + filepath)
+        saved.append((filepath, article["link"]))
+
+    # 淇濆瓨鑱氬悎鏂囦欢锛堟柟渚胯皟璇曪級
+    agg_path = os.path.join(ARTICLES_DIR, today_str + ".md")
+    with open(agg_path, "w", encoding="utf-8") as f:
+        f.write(f"# The New Yorker Daily - {today_str} ({len(top)} articles)\n\n---\n\n")
+        for article in top:
+            f.write(format_single(article))
+            f.write("\n\n---\n\n")
+
+    print("Done: " + str(len(saved)) + " articles saved")
+    return saved
 
 
 if __name__ == "__main__":
-    import glob
-    if len(sys.argv) > 1:
-        if os.path.isfile(sys.argv[1]):
-            translate_file(sys.argv[1])
-        else:
-            files = sorted(glob.glob(os.path.join(INPUT_DIR, sys.argv[1])))
-            for f in files:
-                translate_file(f)
-    else:
-        files = sorted(glob.glob(os.path.join(INPUT_DIR, "*.md")))
-        if files:
-            for f in files:
-                translate_file(f)
-        else:
-            logging.error("娌℃湁鎵惧埌鏂囩珷鏂囦欢")
+    main()
