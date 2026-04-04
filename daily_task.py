@@ -1,21 +1,31 @@
 """
-New Yorker 姣忔棩浠诲姟鍏ュ彛
-鎶撳彇褰撳ぉ鏂囩珷 鈫?鍘婚噸锛堟渶澶?0绡囷級鈫?鎻愮偧瑕佺偣+缈昏瘧 鈫?鍚堝苟涓轰竴灏侀偖浠跺彂閫?"""
+New Yorker RSS fetcher
+Fetch articles from feedx.net/rss/newyorker.xml
+娴佺▼锛氬姞杞藉凡鍙戣褰?鈫?鍙栧綋澶╁€欓€?鈫?鎴彇鍓峃绡?鈫?鎶撳彇鍐呭 鈫?淇濆瓨鐙珛鏂囦欢
+"""
 import os
-import glob
-import json
-from datetime import datetime
+import re
+import requests
+import feedparser
 import pytz
+from datetime import datetime
 
-TZ = pytz.timezone("America/New_York")
-today_str = datetime.now(TZ).strftime("%Y%m%d")
-
+RSS_URL = "https://feedx.net/rss/newyorker.xml"
+ARTICLES_DIR = "articles"
 SENT_FILE = "sent_articles.json"
+MAX_DAILY = 10
+TZ = pytz.timezone("America/New_York")
+
+
+def setup():
+    if not os.path.exists(ARTICLES_DIR):
+        os.makedirs(ARTICLES_DIR)
 
 
 def load_sent():
     if os.path.exists(SENT_FILE):
         try:
+            import json
             with open(SENT_FILE, "r", encoding="utf-8") as f:
                 return set(json.load(f).get("sent", []))
         except Exception:
@@ -23,80 +33,129 @@ def load_sent():
     return set()
 
 
-def save_sent(urls):
-    with open(SENT_FILE, "w", encoding="utf-8") as f:
-        json.dump({"sent": list(urls)}, f, ensure_ascii=False, indent=2)
+def fetch():
+    print("Fetching RSS: " + RSS_URL)
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0)"}
+    resp = requests.get(RSS_URL, headers=headers, timeout=15)
+    resp.raise_for_status()
+    return resp.text
 
 
-# Step 1: 鎶撳彇褰撳ぉ鏂囩珷锛堝凡鍘婚噸锛屾渶澶?0绡囷級
-print("Step 1: 鎶撳彇褰撳ぉ鏂囩珷...")
-import newyorker_rss_reader
-saved = newyorker_rss_reader.main()
+def parse(xml):
+    feed = feedparser.parse(xml)
+    today = datetime.now(TZ).strftime("%Y-%m-%d")
+    entries = []
+    for e in feed.entries:
+        title = e.get("title", "No title")
+        link = e.get("link", "#").strip()
+        pub = e.get("published_parsed") or e.get("updated_parsed")
+        if pub:
+            try:
+                dt = datetime(*pub[:6])
+                pub_str = dt.strftime("%Y-%m-%d")
+            except Exception:
+                pub_str = "unknown"
+        else:
+            pub_str = "unknown"
+        summary = ""
+        if hasattr(e, "summary"):
+            summary = re.sub(r"<[^>]+>", "", e.summary)
+        elif hasattr(e, "description"):
+            summary = re.sub(r"<[^>]+>", "", e.description)
+        entries.append({
+            "title": title.strip(),
+            "link": link,
+            "published": pub_str,
+            "summary": summary.strip(),
+            "today": pub_str == today
+        })
+    today_list = [x for x in entries if x["today"]]
+    print("Total: " + str(len(entries)) + ", Today: " + str(len(today_list)))
+    return today_list
 
-if not saved:
-    print("浠婃棩鏃犳柊鏂囩珷锛岄€€鍑?)
-    exit(0)
 
-print(f"鎶撳彇鍒?{len(saved)} 绡囨柊鏂囩珷")
+def format_single(article):
+    lines = []
+    lines.append("# " + article["title"])
+    lines.append("*Published: " + article["published"] + "*")
+    lines.append("[Original Link](" + article["link"] + ")")
+    lines.append("")
+    if article.get("full_content"):
+        lines.append(article["full_content"])
+    elif article.get("summary"):
+        lines.append(article["summary"])
+    return "\n".join(lines)
 
-# Step 2: 璁板綍浠婃棩 URL 鍒板凡鍙戦€佸垪琛?sent_urls = load_sent()
-for _, url in saved:
-    sent_urls.add(url)
 
-# Step 3: 鎵惧埌浠婃棩鏂囩珷鏂囦欢
-today_files = sorted(glob.glob(os.path.join("articles", today_str + "_art*.md")))
-if not today_files:
-    print("鏈壘鍒颁粖鏃ユ枃绔犳枃浠?)
-    exit(1)
+def fetch_full_content(url):
+    """鎶撳彇鏂囩珷瀹屾暣鍐呭锛堝彲閫夛紝鐢ㄤ簬涓板瘜鎽樿锛?""
+    try:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        resp = requests.get(url, headers=headers, timeout=15)
+        if resp.status_code != 200:
+            return None
+        # 绠€鍗曟彁鍙栵細鍘绘帀 HTML 鏍囩
+        text = re.sub(r"<script[\s\S]*?</script>", "", resp.text)
+        text = re.sub(r"<style[\s\S]*?</style>", "", text)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:3000] if len(text) > 3000 else text
+    except Exception:
+        return None
 
-print(f"寮€濮嬫彁鐐?缈昏瘧 {len(today_files)} 绡囨枃绔?..")
 
-# Step 4: 鎻愮偧+缈昏瘧
-import kimi_summarizer
-translated_contents = []
+def main():
+    setup()
 
-for filepath in today_files:
-    print(f"  缈昏瘧: {os.path.basename(filepath)}")
-    ok = kimi_summarizer.translate_file(filepath)
-    if not ok:
-        print(f"    缈昏瘧澶辫触锛岃烦杩?)
-        continue
+    sent_urls = load_sent()
+    print("Already sent: " + str(len(sent_urls)) + " articles")
 
-    basename = os.path.basename(filepath)
-    translated_file = os.path.join("translate", basename)
+    xml = fetch()
+    today_entries = parse(xml)
 
-    if os.path.exists(translated_file):
-        with open(translated_file, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-        if content:
-            translated_contents.append(content)
-        try:
-            os.remove(translated_file)
-        except Exception:
-            pass
+    if not today_entries:
+        print("No today articles")
+        return None
 
-if not translated_contents:
-    print("鏃犵炕璇戝唴瀹癸紝閫€鍑?)
-    exit(1)
+    # Step 1: 鍘婚噸锛堝幓鎺夊凡鍙戦€佺殑锛?    candidates = [e for e in today_entries if e["link"] not in sent_urls]
+    print("After dedup: " + str(len(candidates)) + " candidates")
 
-# Step 5: 鍚堝苟鎵€鏈夋憳瑕佷负涓€灏侀偖浠?combined = "\n\n---\n\n".join(translated_contents)
-combined_file = os.path.join("translate", today_str + "_combined.md")
-with open(combined_file, "w", encoding="utf-8") as f:
-    f.write(combined)
-print(f"\n鍚堝苟鎽樿宸蹭繚瀛? {combined_file} ({len(combined)} 瀛?")
+    if not candidates:
+        print("All today articles already sent")
+        return None
 
-# Step 6: 鍙戦€佷竴灏侀偖浠?print("鍙戦€侀偖浠?..")
-import send_email
-try:
-    send_email.main(combined_file)
-    print(f"閭欢鍙戦€佹垚鍔燂紝鍏?{len(translated_contents)} 绡囨枃绔?)
-except Exception as e:
-    print(f"閭欢鍙戦€佸け璐? {e}")
+    # Step 2: 鎴彇鏁伴噺涓婇檺锛堟渶鏂扮殑鍦ㄥ墠锛?    top = candidates[:MAX_DAILY]
+    print("Limited to " + str(len(top)) + " articles")
 
-try:
-    os.remove(combined_file)
-except Exception:
-    pass
+    # Step 3: 鎶撳彇鍐呭锛堟瘡绡囬檮涓婂彲閫夌殑鍏ㄦ枃锛?    for i, article in enumerate(top):
+        print(f"  Fetching content ({i+1}/{len(top)}): {article['title']}")
+        full = fetch_full_content(article["link"])
+        if full:
+            article["full_content"] = full
+        else:
+            article["full_content"] = article["summary"]
 
-# Step 7: 淇濆瓨宸插彂閫佽褰?save_sent(sent_urls)
-print(f"瀹屾垚锛歿len(translated_contents)} 绡囨憳瑕佸凡鍙戦€?)
+    # Step 4: 淇濆瓨姣忕瘒涓虹嫭绔嬫枃浠?    today_str = datetime.now(TZ).strftime("%Y%m%d")
+    saved = []
+    for i, article in enumerate(top):
+        filename = today_str + "_art" + str(i + 1) + ".md"
+        filepath = os.path.join(ARTICLES_DIR, filename)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(format_single(article))
+        print("Saved: " + filepath)
+        saved.append((filepath, article["link"]))
+
+    # 淇濆瓨鑱氬悎鏂囦欢锛堟柟渚胯皟璇曪級
+    agg_path = os.path.join(ARTICLES_DIR, today_str + ".md")
+    with open(agg_path, "w", encoding="utf-8") as f:
+        f.write(f"# The New Yorker Daily - {today_str} ({len(top)} articles)\n\n---\n\n")
+        for article in top:
+            f.write(format_single(article))
+            f.write("\n\n---\n\n")
+
+    print("Done: " + str(len(saved)) + " articles saved")
+    return saved
+
+
+if __name__ == "__main__":
+    main()
