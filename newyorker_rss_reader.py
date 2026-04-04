@@ -43,6 +43,7 @@ def parse(xml):
                 pub_str = "unknown"
         else:
             pub_str = "unknown"
+        # 鑾峰彇瀹屾暣鎽樿鍐呭锛屼笉鎴柇
         summary = ""
         if hasattr(e, "summary"):
             summary = re.sub(r"<[^>]+>", "", e.summary)
@@ -52,7 +53,7 @@ def parse(xml):
             "title": title.strip(),
             "link": link.strip(),
             "published": pub_str,
-            "summary": summary.strip()[:500],
+            "summary": summary.strip(),
             "today": pub_str == today
         })
     today_list = [x for x in entries if x["today"]]
@@ -60,7 +61,20 @@ def parse(xml):
     return entries, today_list
 
 
+def format_single_article(e):
+    """鏍煎紡鍖栧崟绡囨枃绔?""
+    lines = []
+    lines.append("# " + e["title"])
+    lines.append("*Published: " + e["published"] + "*")
+    lines.append("[Original Link](" + e["link"] + ")")
+    lines.append("")
+    if e["summary"]:
+        lines.append(e["summary"])
+    return "\n".join(lines)
+
+
 def format_entries(entries):
+    """鏍煎紡鍖栧绡囨枃绔狅紙鐢ㄤ簬鑱氬悎鏂囦欢锛?""
     today_str = datetime.now(TZ).strftime("%Y-%m-%d")
     lines = ["# The New Yorker Daily - " + today_str, "", "Source: " + RSS_URL, "", "---", ""]
     for i, e in enumerate(entries, 1):
@@ -84,17 +98,26 @@ def main():
     today_str = datetime.now(TZ).strftime("%Y%m%d")
     date_str = datetime.now(TZ).strftime("%Y-%m-%d")
 
-    all_file = os.path.join(ARTICLES_DIR, "all_" + today_str + ".md")
+    # 淇濆瓨鎵€鏈夋枃绔?    all_file = os.path.join(ARTICLES_DIR, "all_" + today_str + ".md")
     with open(all_file, "w", encoding="utf-8") as f:
         f.write("# The New Yorker Daily - " + date_str + "\n\nSource: " + RSS_URL + "\n\n---\n\n")
         f.write(format_entries(all_entries))
     print("Saved all: " + all_file)
 
     if today_entries:
+        # 淇濆瓨浠婃棩鏂囩珷鑱氬悎鏂囦欢
         today_file = os.path.join(ARTICLES_DIR, today_str + ".md")
         with open(today_file, "w", encoding="utf-8") as f:
             f.write(format_entries(today_entries))
         print("Saved today: " + today_file)
+
+        # 鍚屾椂灏嗘瘡绡囦粖鏃ユ枃绔犲崟鐙繚瀛橈紝鏂逛究鐙珛澶勭悊
+        for i, e in enumerate(today_entries):
+            single_file = os.path.join(ARTICLES_DIR, today_str + "_art" + str(i + 1) + ".md")
+            with open(single_file, "w", encoding="utf-8") as f:
+                f.write(format_single_article(e))
+            print("Saved article: " + single_file)
+
         return today_file
     else:
         print("No today articles")
