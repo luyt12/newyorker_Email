@@ -35,9 +35,9 @@ def extract_date(filepath):
 def make_html(combined_content, date_str):
     import markdown
 
-    date_fmt = datetime.strptime(date_str, "%Y%m%d").strftime("%Y年%m月%d日")
+    date_fmt = datetime.strptime(date_str, "%Y%m%d").strftime("%Y%m%d")
 
-    # 分割每篇文章（以 ## 开头即为新文章）
+    #  ## 
     sections = re.split(r"\n(?=## )", combined_content.strip())
 
     articles_html = ""
@@ -62,7 +62,7 @@ def make_html(combined_content, date_str):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The New Yorker 日报 - {date_fmt}</title>
+<title>The New Yorker  - {date_fmt}</title>
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
@@ -79,7 +79,7 @@ def make_html(combined_content, date_str):
     overflow: hidden;
     box-shadow: 0 4px 24px rgba(0,0,0,0.08);
   }}
-  /* 报头 */
+  /* header */
   .header {{
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
     color: #fff;
@@ -126,7 +126,7 @@ def make_html(combined_content, date_str):
     opacity: 0.65;
     margin-bottom: 2px;
   }}
-  /* 文章计数 */
+  /* article count */
   .meta-bar {{
     background: #fafafa;
     border-bottom: 1px solid #eee;
@@ -134,7 +134,7 @@ def make_html(combined_content, date_str):
     font-size: 13px;
     color: #888;
   }}
-  /* 文章列表 */
+  /* article list */
   .articles {{
     padding: 32px 40px 40px;
   }}
@@ -148,7 +148,7 @@ def make_html(combined_content, date_str):
     margin-bottom: 0;
     padding-bottom: 0;
   }}
-  /* 文章标题 */
+  /* article title */
   .article h2 {{
     font-size: 17px;
     font-weight: 600;
@@ -158,14 +158,14 @@ def make_html(combined_content, date_str):
     padding-left: 14px;
     border-left: 4px solid #1a1a2e;
   }}
-  /* 文章正文 */
+  /* article body */
   .article p {{
     font-size: 15px;
     line-height: 1.85;
     color: #3a3a3a;
     margin-bottom: 10px;
   }}
-  /* 链接 */
+  /* links */
   .article a {{
     color: #1a1a2e;
     text-decoration: none;
@@ -174,7 +174,7 @@ def make_html(combined_content, date_str):
   .article a:hover {{
     text-decoration: underline;
   }}
-  /* 原文链接 */
+  /*  */
   .article em {{
     display: block;
     margin-top: 12px;
@@ -182,7 +182,7 @@ def make_html(combined_content, date_str):
     color: #aaa;
     font-style: normal;
   }}
-  /* 列表 */
+  /* lists */
   .article ul, .article ol {{
     padding-left: 24px;
     margin: 8px 0;
@@ -197,7 +197,7 @@ def make_html(combined_content, date_str):
     color: #1a1a2e;
     font-weight: 600;
   }}
-  /* 页脚 */
+  /* footer */
   .footer {{
     background: #fafafa;
     border-top: 1px solid #eee;
@@ -227,20 +227,20 @@ def make_html(combined_content, date_str):
   <div class="header">
     <div class="header-inner">
       <div>
-        <h1>The New Yorker 日报</h1>
-        <div class="subtitle">美国深度报道精选 · AI 摘要翻译</div>
+        <h1>The New Yorker </h1>
+        <div class="subtitle"> · AI </div>
       </div>
       <div class="date-badge">
-        <span>日期</span>
+        <span></span>
         {date_fmt}
       </div>
     </div>
   </div>
-  <div class="meta-bar">今日共收录 {len(sections)} 篇精选文章</div>
+  <div class="meta-bar"> {len(sections)} </div>
   <div class="articles">{articles_html}</div>
   <div class="footer">
-    <p>由 OpenClaw Agent 自动生成 · 每日定时推送</p>
-    <p>原文来源：The New Yorker (feedx.net)</p>
+    <p> OpenClaw Agent  · </p>
+    <p>The New Yorker (feedx.net)</p>
   </div>
 </div>
 </body>
@@ -264,7 +264,7 @@ def send_email(filepath):
     msg = MIMEMultipart()
     msg["From"] = EMAIL_FROM
     msg["To"] = EMAIL_TO
-    msg["Subject"] = f"The New Yorker 日报 · {date_fmt}"
+    msg["Subject"] = f"The New Yorker  · {date_fmt}"
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     print(f"SMTP: {SMTP_HOST}:{SMTP_PORT} -> {EMAIL_TO}")
