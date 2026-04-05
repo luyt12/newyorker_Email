@@ -127,6 +127,7 @@ def main():
 
     # Step 2: Limit article count (newest first)
     print("Limited to " + str(len(top)) + " articles")
+    top = candidates[:MAX_DAILY]
 
     # Step 3: Fetch content (optional full content for each)
     for i, article in enumerate(top):
