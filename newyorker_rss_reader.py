@@ -117,7 +117,7 @@ def main():
         print("No today articles")
         return None
 
-    # Step 1: 鍘婚噸锛堝幓鎺夊凡鍙戦€佺殑锛?    candidates = [e for e in today_entries if e["link"] not in sent_urls]
+    # Step 1: Deduplicate against sent URLs
     print("After dedup: " + str(len(candidates)) + " candidates")
 
     if not candidates:
