@@ -148,7 +148,7 @@ def main():
         print("Saved: " + filepath)
         saved.append((filepath, article["link"]))
 
-    # 淇濆瓨鑱氬悎鏂囦欢锛堟柟渚胯皟璇曪級
+    # Save combined file for debugging
     agg_path = os.path.join(ARTICLES_DIR, today_str + ".md")
     with open(agg_path, "w", encoding="utf-8") as f:
         f.write(f"# The New Yorker Daily - {today_str} ({len(top)} articles)\n\n---\n\n")
