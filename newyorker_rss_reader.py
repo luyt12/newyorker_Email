@@ -1,14 +1,13 @@
 """
 New Yorker RSS fetcher
 Fetch articles from feedx.net/rss/newyorker.xml
-娴佺▼锛氬姞杞藉凡鍙戣褰?鈫?鍙栧綋澶╁€欓€?鈫?鎴彇鍓峃绡?鈫?鎶撳彇鍐呭 鈫?淇濆瓨鐙珛鏂囦欢
 """
 import os
 import re
 import requests
 import feedparser
 import pytz
-from datetime import datetime
+from datetime import datetime, timedelta
 
 RSS_URL = "https://feedx.net/rss/newyorker.xml"
 ARTICLES_DIR = "articles"
@@ -43,7 +42,10 @@ def fetch():
 
 def parse(xml):
     feed = feedparser.parse(xml)
-    today = datetime.now(TZ).strftime("%Y-%m-%d")
+    now = datetime.now(TZ)
+    today = now.strftime("%Y-%m-%d")
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
     entries = []
     for e in feed.entries:
         title = e.get("title", "No title")
@@ -57,20 +59,30 @@ def parse(xml):
                 pub_str = "unknown"
         else:
             pub_str = "unknown"
+
         summary = ""
         if hasattr(e, "summary"):
             summary = re.sub(r"<[^>]+>", "", e.summary)
         elif hasattr(e, "description"):
             summary = re.sub(r"<[^>]+>", "", e.description)
+
         entries.append({
             "title": title.strip(),
             "link": link,
             "published": pub_str,
             "summary": summary.strip(),
-            "today": pub_str == today
+            "today": pub_str == today,
+            "yesterday": pub_str == yesterday
         })
+
     today_list = [x for x in entries if x["today"]]
     print("Total: " + str(len(entries)) + ", Today: " + str(len(today_list)))
+
+    if not today_list:
+        yesterday_list = [x for x in entries if x["yesterday"]]
+        print("No today articles, found " + str(len(yesterday_list)) + " yesterday articles — using those")
+        return yesterday_list
+
     return today_list
 
 
@@ -94,7 +106,6 @@ def fetch_full_content(url):
         resp = requests.get(url, headers=headers, timeout=15)
         if resp.status_code != 200:
             return None
-        # 绠€鍗曟彁鍙栵細鍘绘帀 HTML 鏍囩
         text = re.sub(r"<script[\s\S]*?</script>", "", resp.text)
         text = re.sub(r"<style[\s\S]*?</style>", "", text)
         text = re.sub(r"<[^>]+>", " ", text)
