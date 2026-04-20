@@ -1,6 +1,6 @@
 """
 New Yorker article translator
-Summarize and translate English articles to Chinese
+Summarize and translate English articles to Chinese.
 """
 import os
 import sys
@@ -8,13 +8,15 @@ import logging
 import requests
 import time
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
-KIMI_API_KEY = os.getenv("kimi_API_KEY")
-KIMI_MODEL = os.getenv("KIMI_MODEL", "moonshotai/kimi-k2.5")
-KIMI_API_URL = os.getenv("KIMI_API_URL", "https://integrate.api.nvidia.com/v1/chat/completions")
+KIMI_API_KEY  = os.getenv("kimi_API_KEY")
+KIMI_MODEL    = os.getenv("KIMI_MODEL", "moonshotai/kimi-k2.5")
+KIMI_API_URL  = os.getenv("KIMI_API_URL",
+                           "https://integrate.api.nvidia.com/v1/chat/completions")
 
-INPUT_DIR = "articles"
+INPUT_DIR  = "articles"
 OUTPUT_DIR = "translate"
 
 PROMPT = """You are a professional English media editor. Please complete two tasks on the The New Yorker article below:
@@ -49,11 +51,11 @@ def summarize_and_translate(content):
         "Content-Type": "application/json",
         "Authorization": f"Bearer {KIMI_API_KEY}"
     }
-    data = {
+    payload = {
         "model": KIMI_MODEL,
         "messages": [
             {"role": "system", "content": PROMPT},
-            {"role": "user", "content": content}
+            {"role": "user",   "content": content}
         ],
         "temperature": 0.7,
         "max_tokens": 2000
@@ -61,23 +63,22 @@ def summarize_and_translate(content):
 
     for attempt in range(5):
         try:
-            logging.info(f"Submitting summarize+translate (attempt {attempt + 1}/5)...")
+            logging.info(f"Submitting (attempt {attempt + 1}/5)...")
             resp = requests.post(
                 KIMI_API_URL,
                 headers=headers,
-                json=data,
+                json=payload,
                 timeout=300
             )
             resp.raise_for_status()
             result = resp.json()
             if result.get("choices") and result["choices"][0]:
                 return result["choices"][0]["message"]["content"]
-            else:
-                logging.error(f"API response error: {result}")
-                if attempt < 4:
-                    time.sleep(30 * (2 ** attempt))
+            logging.error(f"API response unexpected: {result}")
+            if attempt < 4:
+                time.sleep(30 * (2 ** attempt))
         except requests.exceptions.Timeout:
-            logging.error(f"API timeout (attempt {attempt + 1}/5)")
+            logging.error(f"Timeout (attempt {attempt + 1}/5)")
             if attempt < 4:
                 time.sleep(30 * (2 ** attempt))
         except Exception as e:
@@ -95,14 +96,14 @@ def translate_file(filepath):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     outpath = os.path.join(OUTPUT_DIR, os.path.basename(filepath))
 
-    with open(filepath, 'r', encoding='utf-8') as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
-    logging.info(f"Starting summarize+translate: {filepath} ({len(content)} chars)")
+    logging.info(f"Starting: {filepath} ({len(content)} chars)")
     result = summarize_and_translate(content)
 
     if result:
-        with open(outpath, 'w', encoding='utf-8') as f:
+        with open(outpath, "w", encoding="utf-8") as f:
             f.write(result)
         logging.info(f"Done: {outpath} ({len(result)} chars)")
         return True
@@ -112,16 +113,15 @@ def translate_file(filepath):
 
 
 if __name__ == "__main__":
-    import glob
+    import glob as _glob
     if len(sys.argv) > 1:
         if os.path.isfile(sys.argv[1]):
             translate_file(sys.argv[1])
         else:
-            files = sorted(glob.glob(os.path.join(INPUT_DIR, sys.argv[1])))
-            for f in files:
+            for f in sorted(_glob.glob(os.path.join(INPUT_DIR, sys.argv[1]))):
                 translate_file(f)
     else:
-        files = sorted(glob.glob(os.path.join(INPUT_DIR, "*.md")))
+        files = sorted(_glob.glob(os.path.join(INPUT_DIR, "*.md")))
         if files:
             for f in files:
                 translate_file(f)
