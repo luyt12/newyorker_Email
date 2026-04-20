@@ -1,6 +1,7 @@
 """
-New Yorker article translator
-Summarize and translate English articles to Chinese.
+New Yorker article translator.
+Primary: Kimi LLM (summarize + translate + style).
+Fallback: Baidu AI Translation (translate only, on Kimi failure).
 """
 import os
 import sys
@@ -42,10 +43,11 @@ Translate the extracted key points into Simplified Chinese with these requiremen
 Output the Chinese summary directly, no introductions or meta-comments."""
 
 
-def summarize_and_translate(content):
+def kimi_translate(content):
+    """Primary: translate via Kimi LLM (summarizes + translates + styles)."""
     if not KIMI_API_KEY:
         logging.error("kimi_API_KEY not set")
-        sys.exit(1)
+        return None
 
     headers = {
         "Content-Type": "application/json",
@@ -63,7 +65,7 @@ def summarize_and_translate(content):
 
     for attempt in range(5):
         try:
-            logging.info(f"Submitting (attempt {attempt + 1}/5)...")
+            logging.info(f"[KIMI] Submitting (attempt {attempt + 1}/5)...")
             resp = requests.post(
                 KIMI_API_URL,
                 headers=headers,
@@ -73,18 +75,82 @@ def summarize_and_translate(content):
             resp.raise_for_status()
             result = resp.json()
             if result.get("choices") and result["choices"][0]:
-                return result["choices"][0]["message"]["content"]
-            logging.error(f"API response unexpected: {result}")
+                text = result["choices"][0]["message"]["content"]
+                logging.info(f"[KIMI] OK: {len(text)} chars")
+                return text
+            logging.error(f"[KIMI] API response unexpected: {result}")
             if attempt < 4:
                 time.sleep(30 * (2 ** attempt))
         except requests.exceptions.Timeout:
-            logging.error(f"Timeout (attempt {attempt + 1}/5)")
+            logging.error(f"[KIMI] Timeout (attempt {attempt + 1}/5)")
             if attempt < 4:
                 time.sleep(30 * (2 ** attempt))
         except Exception as e:
-            logging.error(f"Request failed: {e}")
+            logging.error(f"[KIMI] Request failed: {e}")
             if attempt < 4:
                 time.sleep(30 * (2 ** attempt))
+    return None
+
+
+def baidu_fallback(text, title=""):
+    """
+    Fallback: translate via Baidu AI Translation API.
+    Only does translation (no summarization/styling).
+    Returns None on failure.
+    """
+    try:
+        import hashlib, random
+    except ImportError:
+        logging.error("[BAIDU] Could not import hashlib/random")
+        return None
+
+    appid = os.getenv("BAIDU_APPID", "")
+    secret = os.getenv("BAIDU_SECRET_KEY", "")
+    if not appid or not secret:
+        logging.error("[BAIDU] Missing BAIDU_APPID or BAIDU_SECRET_KEY env vars")
+        return None
+
+    # Truncate to 2800 chars to stay well within limit
+    if len(text) > 2800:
+        text = text[:2800]
+
+    salt = str(random.randint(10000, 99999))
+    sign_str = f"{appid}{text}{salt}{secret}"
+    sign = hashlib.md5(sign_str.encode("utf-8")).hexdigest()
+
+    params = {
+        "q": text,
+        "from": "en",
+        "to": "zh",
+        "appid": appid,
+        "salt": salt,
+        "sign": sign,
+    }
+
+    endpoint = "https://fanyi-api.baidu.com/api/trans/vip/translate"
+    for attempt in range(3):
+        try:
+            logging.info(f"[BAIDU] Translating (attempt {attempt + 1}/3)...")
+            resp = requests.post(endpoint, data=params, timeout=30)
+            data = resp.json()
+
+            if data.get("error_code"):
+                logging.error(f"[BAIDU] API error: {data.get('error_code')} - {data.get('error_msg', '')}")
+                if attempt < 2:
+                    time.sleep(5)
+                continue
+
+            if "trans_result" in data and data["trans_result"]:
+                result = "\n".join(item["dst"] for item in data["trans_result"])
+                logging.info(f"[BAIDU] OK: {len(data['trans_result'])} segments, {len(result)} chars")
+                return result
+            else:
+                logging.error(f"[BAIDU] Unexpected response: {data}")
+                return None
+        except Exception as e:
+            logging.error(f"[BAIDU] Request failed: {e}")
+            if attempt < 2:
+                time.sleep(5)
     return None
 
 
@@ -100,16 +166,34 @@ def translate_file(filepath):
         content = f.read()
 
     logging.info(f"Starting: {filepath} ({len(content)} chars)")
-    result = summarize_and_translate(content)
 
-    if result:
-        with open(outpath, "w", encoding="utf-8") as f:
-            f.write(result)
-        logging.info(f"Done: {outpath} ({len(result)} chars)")
-        return True
-    else:
-        logging.error("Translation failed")
-        return False
+    # Step 1: Try Kimi (primary) — summarize + translate + style
+    result = kimi_translate(content)
+
+    if result is None:
+        # Step 2: Kimi failed — try Baidu fallback (translate only)
+        logging.warning("[FALLBACK] Kimi failed — switching to Baidu translation...")
+        # Extract title and body separately
+        lines = content.split("\n")
+        title_line = ""
+        body_lines = []
+        for line in lines:
+            if line.startswith("## "):
+                title_line = line
+            else:
+                body_lines.append(line)
+        body = "\n".join(body_lines)
+        translated_body = baidu_fallback(body, title_line)
+        if translated_body is None:
+            logging.error("[FALLBACK] Baidu also failed — translation skipped")
+            return False
+        # Reconstruct markdown: title + translated body
+        result = (title_line + "\n\n" + translated_body) if title_line else translated_body
+
+    with open(outpath, "w", encoding="utf-8") as f:
+        f.write(result)
+    logging.info(f"Done: {outpath} ({len(result)} chars)")
+    return True
 
 
 if __name__ == "__main__":
