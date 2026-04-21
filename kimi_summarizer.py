@@ -10,7 +10,7 @@ import requests
 import time
 
 logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+                    format=''%(asctime)s - %(levelname)s - %(message)s'')
 
 KIMI_API_KEY  = os.getenv("kimi_API_KEY")
 KIMI_MODEL    = os.getenv("KIMI_MODEL", "moonshotai/kimi-k2.5")
@@ -78,7 +78,8 @@ def kimi_translate(content):
                 text = result["choices"][0]["message"]["content"]
                 logging.info(f"[KIMI] OK: {len(text)} chars")
                 return text
-            logging.error(f"[KIMI] API response unexpected: {result}")
+            else:
+                logging.error(f"[KIMI] API response unexpected: {result}")
             if attempt < 4:
                 time.sleep(30 * (2 ** attempt))
         except requests.exceptions.Timeout:
@@ -92,61 +93,50 @@ def kimi_translate(content):
     return None
 
 
-def baidu_fallback(text, title=""):
+def baidu_fallback(text):
     """
-    Fallback: translate via Baidu AI Translation API.
+    Fallback: translate via Baidu AI Translation API (Bearer Token auth).
     Only does translation (no summarization/styling).
     Returns None on failure.
     """
-    try:
-        import hashlib, random
-    except ImportError:
-        logging.error("[BAIDU] Could not import hashlib/random")
-        return None
-
-    appid = os.getenv("BAIDU_APPID", "")
-    secret = os.getenv("BAIDU_SECRET_KEY", "")
-    if not appid or not secret:
-        logging.error("[BAIDU] Missing BAIDU_APPID or BAIDU_SECRET_KEY env vars")
+    api_key = os.getenv("BAIDU_API_KEY", "")
+    if not api_key:
+        logging.error("[BAIDU] Missing BAIDU_API_KEY env var")
         return None
 
     # Truncate to 2800 chars to stay well within limit
     if len(text) > 2800:
         text = text[:2800]
 
-    salt = str(random.randint(10000, 99999))
-    sign_str = f"{appid}{text}{salt}{secret}"
-    sign = hashlib.md5(sign_str.encode("utf-8")).hexdigest()
-
-    params = {
-        "q": text,
-        "from": "en",
-        "to": "zh",
-        "appid": appid,
-        "salt": salt,
-        "sign": sign,
-    }
-
-    endpoint = "https://fanyi-api.baidu.com/api/trans/vip/translate"
+    endpoint = "https://fanyi-api.baidu.com/ait/api/aiTextTranslate"
     for attempt in range(3):
         try:
             logging.info(f"[BAIDU] Translating (attempt {attempt + 1}/3)...")
-            resp = requests.post(endpoint, data=params, timeout=30)
+            resp = requests.post(
+                endpoint,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key}"
+                },
+                json={"q": text, "from": "en", "to": "zh"},
+                timeout=30
+            )
             data = resp.json()
 
             if data.get("error_code"):
-                logging.error(f"[BAIDU] API error: {data.get('error_code')} - {data.get('error_msg', '')}")
+                logging.error(f"[BAIDU] API error: {data.get(''error_code'')} - {data.get(''error_msg'', '''')}")
                 if attempt < 2:
                     time.sleep(5)
                 continue
 
-            if "trans_result" in data and data["trans_result"]:
-                result = "\n".join(item["dst"] for item in data["trans_result"])
-                logging.info(f"[BAIDU] OK: {len(data['trans_result'])} segments, {len(result)} chars")
-                return result
-            else:
-                logging.error(f"[BAIDU] Unexpected response: {data}")
-                return None
+            if "data" in data and data["data"]:
+                result = data["data"].get("trans_result", "")
+                if result:
+                    logging.info(f"[BAIDU] OK: {len(result)} chars")
+                    return result
+
+            logging.error(f"[BAIDU] Unexpected response: {data}")
+            return None
         except Exception as e:
             logging.error(f"[BAIDU] Request failed: {e}")
             if attempt < 2:
@@ -173,7 +163,6 @@ def translate_file(filepath):
     if result is None:
         # Step 2: Kimi failed — try Baidu fallback (translate only)
         logging.warning("[FALLBACK] Kimi failed — switching to Baidu translation...")
-        # Extract title and body separately
         lines = content.split("\n")
         title_line = ""
         body_lines = []
@@ -183,11 +172,10 @@ def translate_file(filepath):
             else:
                 body_lines.append(line)
         body = "\n".join(body_lines)
-        translated_body = baidu_fallback(body, title_line)
+        translated_body = baidu_fallback(body)
         if translated_body is None:
             logging.error("[FALLBACK] Baidu also failed — translation skipped")
             return False
-        # Reconstruct markdown: title + translated body
         result = (title_line + "\n\n" + translated_body) if title_line else translated_body
 
     with open(outpath, "w", encoding="utf-8") as f:
