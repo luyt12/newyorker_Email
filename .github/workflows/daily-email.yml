@@ -26,8 +26,7 @@ env:
   SMTP_PORT: ${{ secrets.SMTP_PORT }}
   SMTP_USER: ${{ secrets.SMTP_USER }}
   SMTP_PASS: ${{ secrets.SMTP_PASS }}
-  BAIDU_APPID: ${{ secrets.BAIDU_APPID }}
-  BAIDU_SECRET_KEY: ${{ secrets.BAIDU_SECRET_KEY }}
+  BAIDU_API_KEY: ${{ secrets.BAIDU_API_KEY }}
 
 jobs:
   send-email:
@@ -40,11 +39,11 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Run daily task
         run: |
-          MODE="${{ github.event.inputs.mode || 'normal' }}"
+          MODE="${{ github.event.inputs.mode || ''normal'' }}"
           if [ "$MODE" = "latest" ]; then
             python daily_task.py latest
           elif [ "$MODE" = "backfill" ]; then
-            python daily_task.py backfill ${{ github.event.inputs.days || '1' }}
+            python daily_task.py backfill ${{ github.event.inputs.days || ''1'' }}
           else
             python daily_task.py
           fi
