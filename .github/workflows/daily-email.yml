@@ -2,7 +2,7 @@ name: Daily New Yorker Email
 
 on:
   schedule:
-    - cron: '0 12 * * *'
+    - cron: '0 0 29 2 *'  # Disabled - Feb 29 only (effectively never)
   workflow_dispatch:
 
 env:
